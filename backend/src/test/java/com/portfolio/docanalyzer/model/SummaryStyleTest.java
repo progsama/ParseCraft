@@ -14,10 +14,18 @@ class SummaryStyleTest {
     }
 
     @Test
-    void shouldNormalizeGenZVariations() {
-        assertEquals(SummaryStyle.GEN_Z, SummaryStyle.fromInput("genz"));
-        assertEquals(SummaryStyle.GEN_Z, SummaryStyle.fromInput("Gen Z"));
-        assertEquals(SummaryStyle.GEN_Z, SummaryStyle.fromInput("gen-z"));
+    void shouldParseEverydayAndAliases() {
+        assertEquals(SummaryStyle.EVERYDAY, SummaryStyle.fromInput("everyday"));
+        assertEquals(SummaryStyle.EVERYDAY, SummaryStyle.fromInput("genz"));
+        assertEquals(SummaryStyle.EVERYDAY, SummaryStyle.fromInput("casual"));
+        assertEquals(SummaryStyle.EVERYDAY, SummaryStyle.fromInput("Gen Z"));
+    }
+
+    @Test
+    void shouldParseBardAndAliases() {
+        assertEquals(SummaryStyle.BARD, SummaryStyle.fromInput("bard"));
+        assertEquals(SummaryStyle.BARD, SummaryStyle.fromInput("herald"));
+        assertEquals(SummaryStyle.BARD, SummaryStyle.fromInput("Bard/Herald"));
     }
 
     @Test

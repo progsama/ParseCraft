@@ -20,7 +20,7 @@ import org.springframework.web.multipart.MultipartFile;
 @Validated
 @RestController
 @RequestMapping("/api/v1/documents")
-@Tag(name = "Document Analysis", description = "Upload documents for tone + style-aware summary analysis")
+@Tag(name = "Document Analysis", description = "Analyze pasted text or uploaded files for tone + style-aware summary")
 public class DocumentAnalysisController {
 
     private final DocumentAnalysisService documentAnalysisService;
@@ -31,7 +31,10 @@ public class DocumentAnalysisController {
 
     @Operation(
             summary = "Analyze document tone and summary",
-            description = "Uploads a PDF, DOCX, or TXT and returns detected tone, explanation, and rewritten summary.",
+            description = """
+                    Provide either pasted plain text (`text`) or a file (`file`). If both are sent, `text` wins.
+                    Styles: formal, everyday (Gen Z / casual), bard (herald-style poetic summary).
+                    """,
             responses = {
                     @ApiResponse(responseCode = "200", description = "Analysis complete"),
                     @ApiResponse(responseCode = "400", description = "Invalid request", content = @Content(schema = @Schema(hidden = true))),
@@ -45,10 +48,11 @@ public class DocumentAnalysisController {
             produces = MediaType.APPLICATION_JSON_VALUE
     )
     public ResponseEntity<AnalysisResponse> analyzeDocument(
-            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "file", required = false) MultipartFile file,
+            @RequestParam(value = "text", required = false) String text,
             @RequestParam("style") @NotBlank(message = "Summary style is required.") String style
     ) {
-        AnalysisResponse response = documentAnalysisService.analyze(file, style);
+        AnalysisResponse response = documentAnalysisService.analyze(file, text, style);
         return ResponseEntity.ok(response);
     }
 }

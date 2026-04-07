@@ -19,25 +19,16 @@ public class PromptFactory {
                 - Keep tone concise (2-4 words) and based on the source document only.
                 - Keep tone_explanation to 1-2 sentences explaining what the source document is trying to convey and why that tone fits.
                 - tone and tone_explanation must stay source-accurate across all summary styles.
-                - Keep summary to 3-5 sentences.
                 - Summary must be a faithful summary of the source document, not generic advice.
-                - Summary must include:
-                  1) what happened / main purpose,
-                  2) what action is required (if any),
-                  3) deadline or consequence (if present).
-                - Summary must include at least 2 concrete details from the document when available (for example: event, violation, date, requested action, consequence).
+                - Summary must include: main purpose, key action if any, deadline or consequence if present.
+                - Summary must include at least 2 concrete details from the document when available.
                 - Preserve facts, names, and intent. Do not invent details.
                 - Do not mention "JSON", "schema", "prompt", or formatting instructions in the summary.
-                - Follow the requested style exactly: %s.
+                - Follow the requested summary style exactly: %s.
                 - Style guidance: %s
-                - Style intensity:
-                  - formal: fully professional, policy-like wording.
-                  - informal: friendly and conversational.
-                  - casual: noticeably everyday and plainspoken, avoid institutional phrasing.
-                  - genz: clearly Gen Z voice with 1-3 light markers (e.g., "fr", "lowkey", "no cap", "major"), but still readable.
                 - Do not include markdown or code fences.
                 - Ensure valid JSON object only.
-                - "summary" must be plain text only.
+                - "summary" must be plain text only (for bard style, use line breaks between short lines if needed).
 
                 Document:
                 %s
@@ -59,8 +50,7 @@ public class PromptFactory {
                 - tone and tone_explanation must reflect the source document tone (not the requested style).
                 - only summary should match %s style.
                 - summary must include concrete document details, not generic phrasing.
-                - For casual: use plainly spoken language and shorter sentences.
-                - For genz: include 1-3 light Gen Z markers, but avoid overdoing slang.
+                %s
                 - No markdown, no code fences, no extra keys.
 
                 Previous answer:
@@ -68,7 +58,7 @@ public class PromptFactory {
 
                 Source document:
                 %s
-                """.formatted(reason, style.apiValue(), previousJson, documentText);
+                """.formatted(reason, style.apiValue(), styleRepairHints(style), previousJson, documentText);
     }
 
     public String buildStyleRepairPrompt(String documentText, SummaryStyle style, String previousJson) {
@@ -78,26 +68,57 @@ public class PromptFactory {
                 Requested style: %s
 
                 Keep tone and tone_explanation aligned to the original document tone.
-                Do not make tone or tone_explanation sound Gen Z/casual unless the source itself has that tone.
 
-                Specific style constraints:
-                - casual: plainspoken everyday wording, short direct sentences, avoid legal/corporate diction.
-                - genz: modern conversational voice with 1-3 light Gen Z markers (for example: fr, lowkey, no cap, major), still clear.
+                %s
 
                 Previous output:
                 %s
 
                 Source document:
                 %s
-                """.formatted(style.apiValue(), previousJson, documentText);
+                """.formatted(style.apiValue(), styleRepairBlock(style), previousJson, documentText);
+    }
+
+    private String styleRepairHints(SummaryStyle style) {
+        return switch (style) {
+            case FORMAL -> "- For formal: documentation/office/authority language; no slang.";
+            case EVERYDAY -> "- For everyday: plain modern speech; light contractions OK; optional light Gen Z markers (fr, ngl, lowkey) — do not overdo.";
+            case BARD -> "- For bard: short herald-style lines, rhythmic, like a town crier announcing news; still accurate.";
+        };
+    }
+
+    private String styleRepairBlock(SummaryStyle style) {
+        return switch (style) {
+            case FORMAL -> """
+                    Summary style — formal:
+                    Language of documentation, offices, and people in authority: precise, structured, professional.
+                    """;
+            case EVERYDAY -> """
+                    Summary style — everyday / Gen Z–casual:
+                    How regular people talk day to day; may include light Gen Z phrasing; stay clear and readable.
+                    """;
+            case BARD -> """
+                    Summary style — bard / herald:
+                    Deliver the summary as a short spoken announcement: stately, rhythmic lines (like a herald or bard proclaiming news).
+                    You may use "Hear ye" or "Attend:" sparingly; keep facts correct; 4-8 short lines is enough.
+                    """;
+        };
     }
 
     private String styleGuidance(SummaryStyle style) {
         return switch (style) {
-            case FORMAL -> "Professional, precise, and polished. No slang. Full sentences. Corporate/legal-safe tone.";
-            case INFORMAL -> "Friendly and conversational with clear wording. Light contractions are fine.";
-            case CASUAL -> "Clearly everyday language, relaxed plainspoken tone, shorter direct sentences, avoid bureaucratic words.";
-            case GEN_Z -> "Noticeably Gen Z voice, modern and energetic, include a few light slang markers while keeping clarity.";
+            case FORMAL -> """
+                    Formal: language used in documentation, offices, and by people of authority. Precise, neutral, professional.
+                    No slang. Full sentences. Suitable for policy letters and official notices.
+                    """;
+            case EVERYDAY -> """
+                    Gen Z / casual everyday: natural speech regular people use, including light Gen Z markers if they fit.
+                    Relaxed, conversational, easy to read; avoid stiff legal tone in the summary only.
+                    """;
+            case BARD -> """
+                    Bard / herald: rewrite the summary as a short rhythmic proclamation (verse-like spacing OK in plain text).
+                    Stately, memorable, medieval-herald flavor ("Attend, good people…", short lines), but every fact must stay true.
+                    """;
         };
     }
 }

@@ -12,8 +12,9 @@ export default function Home() {
             AI Document Analyzer
           </h1>
           <p className="mt-3 max-w-3xl text-slate-600">
-            Upload a PDF, DOCX, or TXT file to detect its tone and generate a
-            rewritten summary in your selected style.
+            Paste text or upload a PDF, DOCX, or TXT file to detect document tone
+            and get a summary in your chosen style: formal authority voice,
+            everyday / Gen Z casual, or a bard-herald proclamation.
           </p>
         </header>
         <AnalysisForm />

@@ -30,15 +30,11 @@ public class DocumentAnalysisService {
         this.aiOrchestrationService = aiOrchestrationService;
     }
 
-    public AnalysisResponse analyze(MultipartFile file, String styleInput) {
-        validateFile(file);
+    public AnalysisResponse analyze(MultipartFile file, String pastedText, String styleInput) {
         SummaryStyle style = SummaryStyle.fromInput(styleInput);
-        String extension = getExtension(Objects.requireNonNull(file.getOriginalFilename()));
-        validateFileType(extension);
-
-        String extractedText = documentParsingService.extractText(file, extension);
+        String extractedText = resolveDocumentText(file, pastedText);
         if (extractedText.isBlank()) {
-            throw new InvalidRequestException("The uploaded file does not contain readable text.");
+            throw new InvalidRequestException("Provide pasted text or a non-empty file with readable text.");
         }
 
         String aiReadyText = textPreparationService.prepareForAi(extractedText);
@@ -52,9 +48,19 @@ public class DocumentAnalysisService {
         );
     }
 
+    private String resolveDocumentText(MultipartFile file, String pastedText) {
+        if (pastedText != null && !pastedText.isBlank()) {
+            return pastedText.trim();
+        }
+        validateFile(file);
+        String extension = getExtension(Objects.requireNonNull(file.getOriginalFilename()));
+        validateFileType(extension);
+        return documentParsingService.extractText(file, extension);
+    }
+
     private void validateFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new InvalidRequestException("A non-empty file is required.");
+            throw new InvalidRequestException("Provide pasted text or upload a file.");
         }
     }
 

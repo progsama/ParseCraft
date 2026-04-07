@@ -4,6 +4,8 @@ import com.portfolio.docanalyzer.config.UploadProperties;
 import com.portfolio.docanalyzer.dto.AiStructuredResponse;
 import com.portfolio.docanalyzer.dto.AnalysisResponse;
 import com.portfolio.docanalyzer.exception.InvalidRequestException;
+import com.portfolio.docanalyzer.model.SummaryStyle;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -11,12 +13,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 
-import java.util.List;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -45,7 +47,7 @@ class DocumentAnalysisServiceTest {
     }
 
     @Test
-    void shouldReturnAnalysisResponseForValidInput() {
+    void shouldReturnAnalysisResponseForValidFile() {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
                 "notes.txt",
@@ -55,15 +57,34 @@ class DocumentAnalysisServiceTest {
 
         when(documentParsingService.extractText(any(), eq("txt"))).thenReturn("Extracted text");
         when(textPreparationService.prepareForAi("Extracted text")).thenReturn("Prepared text");
-        when(aiOrchestrationService.analyze(eq("Prepared text"), eq(com.portfolio.docanalyzer.model.SummaryStyle.FORMAL)))
+        when(aiOrchestrationService.analyze(eq("Prepared text"), eq(SummaryStyle.FORMAL)))
                 .thenReturn(new AiStructuredResponse("Professional", "Clear and direct", "Short summary"));
 
-        AnalysisResponse response = documentAnalysisService.analyze(file, "formal");
+        AnalysisResponse response = documentAnalysisService.analyze(file, null, "formal");
 
         assertEquals("Professional", response.tone());
         assertEquals("Clear and direct", response.toneExplanation());
         assertEquals("Short summary", response.summary());
         assertEquals("formal", response.summaryStyle());
+    }
+
+    @Test
+    void shouldPreferPastedTextOverFile() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "notes.txt",
+                "text/plain",
+                "ignored".getBytes()
+        );
+
+        when(textPreparationService.prepareForAi("Pasted body")).thenReturn("Prepared text");
+        when(aiOrchestrationService.analyze(eq("Prepared text"), eq(SummaryStyle.EVERYDAY)))
+                .thenReturn(new AiStructuredResponse("Casual", "Expl", "Sum"));
+
+        AnalysisResponse response = documentAnalysisService.analyze(file, "Pasted body", "everyday");
+
+        assertEquals("everyday", response.summaryStyle());
+        verify(documentParsingService, never()).extractText(any(), any());
     }
 
     @Test
@@ -75,11 +96,11 @@ class DocumentAnalysisServiceTest {
                 "content".getBytes()
         );
 
-        assertThrows(InvalidRequestException.class, () -> documentAnalysisService.analyze(file, "formal"));
+        assertThrows(InvalidRequestException.class, () -> documentAnalysisService.analyze(file, null, "formal"));
     }
 
     @Test
-    void shouldRejectEmptyFile() {
+    void shouldRejectEmptyFileWhenNoText() {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
                 "empty.txt",
@@ -87,6 +108,6 @@ class DocumentAnalysisServiceTest {
                 new byte[0]
         );
 
-        assertThrows(InvalidRequestException.class, () -> documentAnalysisService.analyze(file, "formal"));
+        assertThrows(InvalidRequestException.class, () -> documentAnalysisService.analyze(file, null, "formal"));
     }
 }

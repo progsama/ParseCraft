@@ -54,6 +54,23 @@ class DocumentAnalysisControllerIntegrationTest {
     }
 
     @Test
+    void shouldAnalyzePastedTextWithoutFile() throws Exception {
+        when(aiClient.analyze(anyString())).thenReturn("""
+                {
+                  "tone": "Formal",
+                  "tone_explanation": "Official notice tone.",
+                  "summary": "Summary from paste."
+                }
+                """);
+
+        mockMvc.perform(multipart("/api/v1/documents/analyze")
+                        .param("text", "Suspension letter body text here.")
+                        .param("style", "bard"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summaryStyle").value("bard"));
+    }
+
+    @Test
     void shouldReturnBadRequestForUnsupportedFileType() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
                 "file",

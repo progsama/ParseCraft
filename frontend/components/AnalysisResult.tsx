@@ -4,6 +4,19 @@ interface AnalysisResultProps {
   result: AnalysisResponse;
 }
 
+function styleLabel(apiStyle: string): string {
+  switch (apiStyle) {
+    case "formal":
+      return "Formal";
+    case "everyday":
+      return "Gen Z / Casual";
+    case "bard":
+      return "Bard / Herald";
+    default:
+      return apiStyle;
+  }
+}
+
 export function AnalysisResult({ result }: AnalysisResultProps) {
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -27,7 +40,7 @@ export function AnalysisResult({ result }: AnalysisResultProps) {
 
         <div>
           <p className="text-sm font-medium uppercase tracking-wide text-slate-500">
-            Summary ({result.summaryStyle})
+            Summary ({styleLabel(result.summaryStyle)})
           </p>
           <p className="mt-1 whitespace-pre-line text-slate-700">
             {result.summary}

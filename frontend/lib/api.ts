@@ -4,12 +4,18 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 
 export async function analyzeDocument(
-  file: File,
+  options: { file?: File | null; text?: string },
   style: SummaryStyle,
 ): Promise<AnalysisResponse> {
   const formData = new FormData();
-  formData.append("file", file);
   formData.append("style", style);
+
+  const trimmed = options.text?.trim() ?? "";
+  if (trimmed.length > 0) {
+    formData.append("text", trimmed);
+  } else if (options.file) {
+    formData.append("file", options.file);
+  }
 
   const response = await fetch(`${API_BASE_URL}/api/v1/documents/analyze`, {
     method: "POST",

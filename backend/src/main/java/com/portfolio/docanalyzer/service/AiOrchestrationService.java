@@ -90,13 +90,12 @@ public class AiOrchestrationService {
                 SUMMARY: <value>
 
                 Rules:
-                - Keep EXPLANATION to 1 sentence.
-                - Keep SUMMARY to 3-4 sentences in %s style.
+                - Keep EXPLANATION to 1 sentence (about the source document tone and message).
+                - Keep SUMMARY faithful to the document in %s style (for bard: short rhythmic lines).
                 - Do not use JSON, markdown, or code fences.
-                Keep EXPLANATION to 1 sentence and SUMMARY to 3-4 sentences in %s style.
                 Base everything on this document:
                 %s
-                """.formatted(style.apiValue(), style.apiValue(), documentText);
+                """.formatted(style.apiValue(), documentText);
 
         String raw = aiClient.analyze(fallbackPrompt);
         String tone = extractSectionValue(raw, "TONE:", new String[] {"EXPLANATION:", "SUMMARY:"}, "Neutral");
@@ -148,7 +147,7 @@ public class AiOrchestrationService {
             tone = inferTone(documentText);
         }
         if (isMissing(explanation)) {
-            explanation = inferToneExplanation(documentText, tone);
+            explanation = inferToneExplanation(tone);
         }
         if (isMissing(summary)) {
             summary = inferSummary(documentText, style);
@@ -176,7 +175,7 @@ public class AiOrchestrationService {
         return "Neutral and informative";
     }
 
-    private String inferToneExplanation(String documentText, String tone) {
+    private String inferToneExplanation(String tone) {
         if (tone.toLowerCase(Locale.ROOT).contains("serious")) {
             return "The document uses direct and formal language to communicate consequences and policy-based decisions.";
         }
@@ -191,9 +190,8 @@ public class AiOrchestrationService {
         String base = compact.length() > 420 ? compact.substring(0, 420) + "..." : compact;
         return switch (style) {
             case FORMAL -> "This document states: " + base;
-            case INFORMAL -> "Here is the key point: " + base;
-            case CASUAL -> "Quick recap: " + base;
-            case GEN_Z -> "Quick rundown: " + base;
+            case EVERYDAY -> "Quick recap: " + base;
+            case BARD -> "Hear ye — the matter thus: " + base;
         };
     }
 
@@ -221,9 +219,8 @@ public class AiOrchestrationService {
 
         return switch (style) {
             case FORMAL -> !containsSlang(combined);
-            case INFORMAL -> true;
-            case CASUAL -> true;
-            case GEN_Z -> containsGenZMarkers(combined);
+            case EVERYDAY -> true;
+            case BARD -> true;
         };
     }
 
@@ -260,12 +257,19 @@ public class AiOrchestrationService {
 
         return switch (style) {
             case FORMAL -> true;
-            case INFORMAL -> true;
-            case CASUAL -> summaryOnly.contains("you")
+            case EVERYDAY -> summaryOnly.contains("you")
                     || summaryOnly.contains("pretty")
                     || summaryOnly.contains("kind of")
-                    || summaryOnly.contains("honestly");
-            case GEN_Z -> containsGenZMarkers(summaryOnly);
+                    || summaryOnly.contains("honestly")
+                    || containsGenZMarkers(summaryOnly)
+                    || summaryOnly.contains("'");
+            case BARD -> summaryOnly.contains("hear")
+                    || summaryOnly.contains("attend")
+                    || summaryOnly.contains("hark")
+                    || summaryOnly.contains("good people")
+                    || summaryOnly.contains("proclaim")
+                    || summaryOnly.contains("thus")
+                    || summaryOnly.lines().count() >= 3;
         };
     }
 }
