@@ -1,257 +1,312 @@
-# AI Document Analyzer
+# ParseCraft
 
-Full-stack portfolio project: a **Next.js** web app and **Spring Boot** API that extract text from documents (or accept pasted text), infer **tone**, and generate a **style-aware summary** using OpenAI or Google Gemini.
+AI-powered document analysis tool that extracts tone and generates style-aware summaries from pasted text or uploaded documents.
+
+## Live Demo
+
+**Try ParseCraft:** [https://d1qzyiqerket0h.cloudfront.net](https://d1qzyiqerket0h.cloudfront.net)
+
+- Frontend (CloudFront): [https://d1qzyiqerket0h.cloudfront.net](https://d1qzyiqerket0h.cloudfront.net)
+- Backend (AWS App Runner): [https://jjttw5tiex.us-east-1.awsapprunner.com](https://jjttw5tiex.us-east-1.awsapprunner.com)
 
 ---
 
-## Table of contents
+## Product Overview
 
-- [Features](#features)
-- [Architecture](#architecture)
-- [Tech stack](#tech-stack)
-- [API](#api-documentation)
-- [Local setup](#local-setup)
-- [Docker](#docker)
-- [Interactive API docs (Swagger UI)](#interactive-api-docs-swagger-ui)
-- [Screenshots](#screenshots)
-- [Resume-ready bullets](#resume-ready-bullets)
-- [Project talking points](#project-talking-points)
+ParseCraft is a full-stack application for fast document understanding. Users can paste text or upload a PDF/DOCX/TXT file, choose a summary style, and receive:
+
+- detected document tone,
+- a short tone explanation,
+- a rewritten summary in the selected style.
+
+The backend orchestrates LLM responses with structured JSON parsing, fallback handling, and style-specific prompt guidance.
+It is designed as a stateless API service, which keeps each request self-contained and simplifies cloud deployment and scaling.
+
+---
+
+## Engineering Decisions (Practical)
+
+- **Stateless backend design:** no database in v1, so each request is independent and easier to run in containers/cloud services.
+- **Provider-agnostic AI integration:** backend supports configurable AI providers and fallback models via environment variables.
+- **Structured response handling:** AI output is sanitized/parsing-validated before returning results to clients.
+- **Input safety and UX constraints:** file extension/size checks, text-length limits, and clear error paths for bad input.
+- **Production-ready API basics:** health endpoint, OpenAPI docs, CORS configuration, and tested service/integration flows.
 
 ---
 
 ## Features
 
-- **Paste or upload** — Analyze plain text pasted in the UI, or upload **PDF**, **DOCX**, or **TXT**. If both are provided, **pasted text takes priority** (file parsing is skipped).
-- **Tone analysis** — Returns a high-level **tone** label and a short **tone explanation** grounded in the content.
-- **Three summary styles** — Configurable rewrite of the material:
-  - **Formal** — Documentation, office, authority-register language.
-  - **Everyday / Gen Z–casual** — Natural, contemporary casual phrasing (aliases like `casual`, `genz` accepted server-side).
-  - **Bard / Herald** — Short, rhythmic “proclamation” style while staying factually tied to the source (aliases like `herald` accepted server-side).
-- **Pluggable AI** — Switch between **OpenAI** and **Gemini** via environment variables; optional **fallback models** for resilience.
-- **Quality gates** — Server-side checks and structured JSON parsing with repair paths when the model output is incomplete.
-- **CORS-aware** — Origins configurable for local dev and Docker (e.g. port **3001** for the containerized frontend).
-- **Tests** — JUnit/Mockito unit tests and Spring MVC integration tests for the analyze endpoint.
+- Paste text or upload a file for analysis.
+- Pasted text takes priority when both text and file are provided.
+- Supported summary styles:
+  - `formal`
+  - `everyday` (Gen Z / casual)
+  - `bard` (herald-style prose)
+- Tone detection + explanation.
+- Style-aware summary generation.
+- Health endpoints:
+  - Backend: `GET /api/v1/health`
+  - Frontend: `GET /health`
+- Swagger/OpenAPI docs for backend API.
+
+### Summarization Workflow
+
+1. Frontend sends multipart request with `style` plus either `text` or `file`.
+2. Backend extracts/prepares document content (text upload or parsed file content).
+3. AI orchestration generates structured output (`tone`, `tone_explanation`, `summary`) with retry/fallback behavior.
+4. API returns normalized analysis response to frontend for display.
 
 ---
 
-## Architecture
-
-```text
-┌─────────────────┐     HTTPS (browser)      ┌──────────────────────┐
-│  Next.js (React)│ ────────────────────────►  │  Spring Boot REST API │
-│  static UI      │   multipart/form-data      │  /api/v1/documents/*  │
-└────────┬────────┘                            └──────────┬───────────┘
-         │                                               │
-         │  NEXT_PUBLIC_API_BASE_URL                     │ PDFBox / POI
-         │  (e.g. http://localhost:8080)                 │ (extract text)
-         │                                               ▼
-         │                                    ┌──────────────────────┐
-         │                                    │  AiOrchestration      │
-         │                                    │  (prompts, JSON parse, │
-         │                                    │   quality gates)      │
-         │                                    └──────────┬───────────┘
-         │                                               │
-         │                                               ▼
-         │                                    ┌──────────────────────┐
-         └──────────────────────────────────  │  OpenAI or Gemini     │
-              (no DB in v1)                   │  (HTTP, stateless)    │
-                                              └──────────────────────┘
-```
-
-**Design in one paragraph:** The browser talks only to the API. The API is **stateless**: each request carries the document text (from paste or parsed file), style choice, and credentials flow through environment variables—no session store and **no database in v1**. Parsing happens in-process (PDFBox, POI). The orchestration layer builds provider-specific prompts, requests **structured JSON** from the LLM, sanitizes and validates the response, and applies fallbacks when fields are missing or fail quality checks.
-
----
-
-## Tech stack
-
-<!-- markdownlint-disable MD060 -->
-
-| Layer     | Choice                                                 |
-| --------- | ------------------------------------------------------ |
-| Frontend  | Next.js 16, React 19, TypeScript, Tailwind CSS         |
-| Backend   | Java 17, Spring Boot 3.3, Spring Validation            |
-| Docs      | springdoc-openapi (Swagger UI)                       |
-| Documents | Apache PDFBox (PDF), Apache POI (DOCX), plain text   |
-| AI        | OpenAI-compatible or Gemini REST via configurable base URL |
-
-<!-- markdownlint-enable MD060 -->
-
----
-
-## API documentation
-
-### `POST /api/v1/documents/analyze`
-
-**Content-Type:** `multipart/form-data`
-
-<!-- markdownlint-disable MD060 -->
-
-| Field   | Required | Description |
-| ------- | -------- | ----------- |
-| `style` | **Yes**  | Summary style. Canonical values: `formal`, `everyday`, `bard`. Aliases (e.g. `casual`, `genz` → everyday; `herald` → bard) are normalized server-side. |
-| `text`  | No*      | Plain text to analyze. If present and non-blank after trim, it is used and **any uploaded file is ignored**. |
-| `file`  | No*      | One file: `.pdf`, `.docx`, or `.txt` (per server config). Used when `text` is empty. |
-
-<!-- markdownlint-enable MD060 -->
-
-\*Exactly one of `text` or `file` must effectively supply content: either non-empty `text`, or a non-empty file.
-
-**Success — `200 OK`** — JSON body:
-
-```json
-{
-  "tone": "string",
-  "toneExplanation": "string",
-  "summary": "string",
-  "summaryStyle": "formal | everyday | bard"
-}
-```
-
-**Error responses** (typical):
-
-<!-- markdownlint-disable MD060 -->
-
-| Status | Meaning |
-| ------ | ------- |
-| `400`  | Missing style, invalid style, or neither usable text nor file |
-| `422`  | Document could not be parsed |
-| `502`  | AI provider error or invalid/unusable model response |
-
-<!-- markdownlint-enable MD060 -->
-
-**Example (curl)** — pasted text only:
-
-```bash
-curl -s -X POST "http://localhost:8080/api/v1/documents/analyze" \
-  -F "style=everyday" \
-  -F "text=Your document text here."
-```
-
-**Example** — file upload:
-
-```bash
-curl -s -X POST "http://localhost:8080/api/v1/documents/analyze" \
-  -F "style=formal" \
-  -F "file=@./sample.pdf"
-```
-
----
-
-## Local setup
-
-### Prerequisites
-
-- **Java 17** and **Maven 3.9+** (backend)
-- **Node.js 20+** and npm (frontend)
-- An **API key** for your chosen provider (`AI_PROVIDER` = `openai` or `gemini`)
-
-### Backend
-
-```bash
-cd backend
-cp .env.example .env
-# Edit .env: set AI_API_KEY, AI_PROVIDER, AI_MODEL, APP_CORS_ALLOWED_ORIGINS (include http://localhost:3000 for default Next dev port)
-mvn clean test
-mvn spring-boot:run
-```
-
-API base URL defaults to **<http://localhost:8080>**.
+## Tech Stack
 
 ### Frontend
 
-```bash
-cd frontend
-npm ci
-# Optional: create .env.local with NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
-npm run dev
+- Next.js 16 (App Router)
+- React 19 + TypeScript
+- Tailwind CSS 4
+
+### Backend
+
+- Java 17
+- Spring Boot 3.3
+- Spring Validation
+- springdoc-openapi (Swagger UI)
+- Apache PDFBox + Apache POI for document parsing
+
+### AI Integration
+
+- Configurable provider: Gemini or OpenAI-compatible APIs
+- JSON response sanitization and parsing
+- Retry/fallback model orchestration
+
+### Runtime & Hosting
+
+- Frontend: AWS S3 + CloudFront
+- Backend: AWS App Runner
+- Local containers: Docker Compose
+
+### Deployed Cloud Architecture
+
+- **Frontend delivery:** static web app served globally via CloudFront.
+- **Backend hosting:** Spring Boot API deployed as a containerized service on AWS App Runner.
+- **Decoupled services:** frontend and backend are independently deployable and connected via configurable API base URL.
+
+---
+
+## Project Structure
+
+```text
+AI Project/
+├─ backend/
+│  ├─ src/main/java/com/portfolio/docanalyzer/
+│  │  ├─ client/        # AI provider clients (Gemini/OpenAI)
+│  │  ├─ controller/    # API controllers
+│  │  ├─ service/       # parsing + orchestration + analysis logic
+│  │  ├─ model/         # domain models/enums
+│  │  └─ util/          # prompt + JSON sanitization helpers
+│  ├─ src/main/resources/application.yml
+│  ├─ .env.example
+│  ├─ Dockerfile
+│  └─ pom.xml
+├─ frontend/
+│  ├─ app/              # Next.js app routes and pages
+│  ├─ components/       # UI components
+│  ├─ lib/              # API client helpers
+│  ├─ types/            # shared TS types
+│  ├─ Dockerfile
+│  └─ package.json
+├─ docs/
+├─ docker-compose.yml
+└─ README.md
 ```
 
-Open **<http://localhost:3000>** (default Next.js dev port).
+---
+
+## API Summary
+
+### Analyze Document
+
+- **Endpoint:** `POST /api/v1/documents/analyze`
+- **Content type:** `multipart/form-data`
+- **Fields:**
+  - `style` (required): `formal`, `everyday`, `bard`
+  - `text` (optional): pasted plain text
+  - `file` (optional): `.pdf`, `.docx`, `.txt`
+- If both `text` and `file` are sent, `text` is used.
+
+### Health
+
+- **Endpoint:** `GET /api/v1/health`
+- **Response:** `{ "status": "ok" }`
+
+### Swagger
+
+- Local Swagger UI: `http://localhost:8080/swagger-ui.html`
+- Local OpenAPI JSON: `http://localhost:8080/api-docs`
+
+---
+
+## Supported File Types and Limits
+
+- Supported file extensions: `.pdf`, `.docx`, `.txt`
+- Frontend file size validation: **10MB**
+- Backend multipart limits (default):
+  - `APP_MAX_FILE_SIZE=10MB`
+  - `APP_MAX_REQUEST_SIZE=10MB`
+- Frontend pasted-text limit: **50,000 characters**
+- Backend AI text-prep cap (default): `APP_MAX_CHARS_FOR_AI=15000`
+
+---
+
+## Environment Variables
+
+### Backend (`backend/.env`)
+
+| Variable | Required | Description | Default/Example |
+| --- | --- | --- | --- |
+| `PORT` | No | Backend port | `8080` |
+| `APP_CORS_ALLOWED_ORIGINS` | Yes (for browser access) | Allowed CORS origins | `http://localhost:3000,http://localhost:3001` |
+| `APP_MAX_FILE_SIZE` | No | Max uploaded file size | `10MB` |
+| `APP_MAX_REQUEST_SIZE` | No | Max multipart request size | `10MB` |
+| `APP_MAX_CHARS_FOR_AI` | No | Max characters sent to AI after prep | `15000` |
+| `AI_PROVIDER` | Yes | AI provider (`gemini` or `openai`) | `gemini` |
+| `AI_BASE_URL` | Yes | Provider base URL | `https://generativelanguage.googleapis.com` |
+| `AI_API_KEY` | Yes | Provider API key | _(set your secret)_ |
+| `AI_MODEL` | Yes | Primary model name | `gemini-2.5-flash` |
+| `AI_FALLBACK_MODELS` | No | Comma-separated fallback models | `gemini-2.0-flash,gemini-flash-lite-latest` |
+| `AI_TEMPERATURE` | No | Generation temperature | `0.2` |
+| `AI_MAX_TOKENS` | No | Max output tokens | `2048` |
+
+### Frontend (`frontend/.env.local`)
+
+| Variable | Required | Description | Default/Example |
+| --- | --- | --- | --- |
+| `NEXT_PUBLIC_API_BASE_URL` | Yes (recommended) | Backend base URL used by frontend | `http://localhost:8080` |
+
+---
+
+## Local Development
+
+For detailed setup, see [`docs/SETUP.md`](docs/SETUP.md).
+
+### Quick Start
+
+1. **Backend**
+   - `cd backend`
+   - copy `.env.example` to `.env`
+   - set `AI_API_KEY` and provider/model values
+   - run: `mvn clean test` then `mvn spring-boot:run`
+
+2. **Frontend**
+   - `cd frontend`
+   - `npm ci`
+   - set `NEXT_PUBLIC_API_BASE_URL=http://localhost:8080` in `.env.local` (optional but recommended)
+   - run: `npm run dev`
+
+3. Open `http://localhost:3000`
 
 ---
 
 ## Docker
 
-From the **repository root** (where `docker-compose.yml` lives):
-
-1. Ensure **`backend/.env`** exists (copy from `backend/.env.example`) with at least **`AI_API_KEY`** and **`APP_CORS_ALLOWED_ORIGINS`** including **`http://localhost:3001`** (mapped host port for the frontend container).
-
-2. Build and run:
+1. Ensure `backend/.env` exists and includes a valid `AI_API_KEY`.
+2. From repo root:
 
 ```bash
 docker compose up --build
 ```
 
-<!-- markdownlint-disable MD060 -->
+1. Access:
 
-| Service  | URL                     |
-| -------- | ----------------------- |
-| Frontend | <http://localhost:3001> |
-| Backend  | <http://localhost:8080> |
-
-<!-- markdownlint-enable MD060 -->
-
-The compose file sets `NEXT_PUBLIC_API_BASE_URL=http://localhost:8080` so the **browser** calls the API on the host (correct for local Docker). If you use `127.0.0.1` or another origin, add it to **`APP_CORS_ALLOWED_ORIGINS`** and restart the backend.
+   - Frontend: `http://localhost:3001`
+   - Backend: `http://localhost:8080`
+   - Backend health: `http://localhost:8080/api/v1/health`
+   - Frontend health: `http://localhost:3001/health`
 
 ---
 
-## Interactive API docs (Swagger UI)
+## How to Use
 
-With the backend running:
+For a fuller walkthrough, see [`docs/USAGE.md`](docs/USAGE.md).
 
-- **Swagger UI:** <http://localhost:8080/swagger-ui.html>  
-- **OpenAPI JSON:** <http://localhost:8080/api-docs>  
+1. Open the web app: [https://d1qzyiqerket0h.cloudfront.net](https://d1qzyiqerket0h.cloudfront.net)
+2. Paste document text **or** upload a supported file (`.pdf`, `.docx`, `.txt`).
+3. Choose a summary style:
+   - Formal
+   - Gen Z / Casual
+   - Bard / Herald
+4. Click **Analyze**.
+5. Review:
+   - detected tone,
+   - tone explanation,
+   - generated summary.
+
+---
+
+## Deployment
+
+For deployment details, see [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+
+- Frontend is deployed on **AWS S3 + CloudFront**:
+  - [https://d1qzyiqerket0h.cloudfront.net](https://d1qzyiqerket0h.cloudfront.net)
+- Backend is deployed on **AWS App Runner**:
+  - [https://jjttw5tiex.us-east-1.awsapprunner.com](https://jjttw5tiex.us-east-1.awsapprunner.com)
 
 ---
 
 ## Screenshots
 
-Add your own captures under **`docs/screenshots/`** and replace the placeholders below (or embed directly in your portfolio site).
+Screenshots can be added in `docs/screenshots/`.
 
-<!-- markdownlint-disable MD060 -->
+Placeholder entries:
 
-| # | Suggested content | Suggested filename |
-| - | ----------------- | ------------------ |
-| 1 | Landing page with paste area + upload + style dropdown | `docs/screenshots/01-form.png` |
-| 2 | Results: tone + explanation + summary | `docs/screenshots/02-result.png` |
-| 3 | Swagger UI showing `POST /analyze` | `docs/screenshots/03-swagger.png` |
-
-<!-- markdownlint-enable MD060 -->
-
-**Markdown placeholders** (uncomment when files exist):
-
-```markdown
-<!-- ![Form](docs/screenshots/01-form.png) -->
-<!-- ![Result](docs/screenshots/02-result.png) -->
-```
-
-See **`docs/screenshots/README.md`** for a short checklist.
+- Main analyze form
+- Analysis result panel
+- Swagger/API docs page
 
 ---
 
-## Resume-ready bullets
+## Resume-Friendly Highlights
 
-- Designed and implemented a **full-stack AI document analysis** tool: **Spring Boot 3** REST API and **Next.js** SPA with **multipart** upload and **paste-to-analyze** flow; **pasted text prioritized** over file when both are present.
-- Integrated **LLM providers** (OpenAI / Gemini) via **configuration-driven** HTTP clients, with **structured JSON** outputs, **sanitization**, and **quality gates** before returning tone and style-aware summaries.
-- Parsed **PDF** and **DOCX** server-side (**PDFBox**, **Apache POI**) with validation for file types and size limits; configurable **character caps** for model input.
-- Exposed **OpenAPI** documentation via **springdoc** and **Swagger UI**; wrote **JUnit** unit and **Spring MVC** integration tests for critical paths.
-- Containerized **frontend and backend** with **Docker Compose** for repeatable local and demo environments; documented **CORS** and environment-based secrets for production readiness.
+- Built and deployed a cloud-hosted full-stack application (**Next.js + Spring Boot**) with separate frontend/backend infrastructure on AWS.
+- Implemented robust document input handling for `.pdf`, `.docx`, and `.txt`, plus a paste-first workflow with frontend and backend validation rules.
+- Developed a stateless summarization pipeline with structured AI response parsing, retry/fallback behavior, and style-specific prompt control.
+- Added API reliability and operability features including health endpoints, OpenAPI documentation, multipart validation, and CORS configuration.
+- Containerized both services with Docker and documented local/dev deployment paths for reproducible onboarding.
+
+### Internship-Relevant Takeaways
+
+- Demonstrates ability to ship across the full stack: UI, API, cloud deployment, and developer documentation.
+- Shows practical engineering judgment under realistic constraints (v1 scope, stateless design, clear interfaces, tested behavior).
+- Reflects production habits valued in internships: environment-based config, health checks, input validation, and maintainable docs.
 
 ---
 
-## Project talking points
+## Future Improvements
 
-**Why Spring Boot?**  
-It matches common enterprise stacks, gives a fast path to a **production-style REST API** (validation, exception handling, multipart, dependency injection), and pairs cleanly with **OpenAPI** and tests. For a portfolio piece aimed at backend or full-stack roles, it signals familiarity with tools recruiters already keyword-search for.
+- Add authentication and per-user analysis history.
+- Add persistence layer for saved documents and results.
+- Add async job processing for large files and longer summaries.
+- Add richer observability (structured logs, metrics, tracing).
+- Expand supported file types and batch processing.
+- Add model evaluation metrics and prompt/version tracking.
 
-**Why no database in v1?**  
-The product scope is **stateless analysis**: upload or paste, analyze, return JSON. There are no users, sessions, or saved reports yet. Skipping a database keeps **deployment, security surface, and complexity** lower while the core value—reliable parsing + LLM orchestration—is proven. A database becomes justified when you add **accounts, audit history, or saved analyses**.
+---
 
-**Why stateless?**  
-Each request is **self-contained** (document + style + config). That simplifies **horizontal scaling** later (any instance can serve any request), avoids sticky sessions, and aligns with **12-factor** style config (secrets via env). When you add persistence, you can keep the API stateless and push session/user state to **JWT + DB** or a cache without rewriting the core analysis flow.
+## Contributing
+
+Contributions are welcome.
+
+1. Fork the repository.
+2. Create a feature branch.
+3. Make focused changes with tests where applicable.
+4. Open a pull request with a clear summary and test notes.
+
+Please avoid committing secrets (`.env`, API keys, credentials).
 
 ---
 
 ## License
 
-Private portfolio / demonstration.
+This project is licensed under the MIT License. See [LICENSE](LICENSE).

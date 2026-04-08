@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AI Document Analyzer",
-  description: "Portfolio-grade AI-powered document analysis app",
+  title: "ParseCraft - AI Document Analyzer",
+  description: "AI-powered document analysis app",
 };
 
 export default function RootLayout({
