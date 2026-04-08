@@ -6,7 +6,6 @@ import com.portfolio.docanalyzer.dto.AnalysisResponse;
 import com.portfolio.docanalyzer.exception.InvalidRequestException;
 import com.portfolio.docanalyzer.model.SummaryStyle;
 import java.util.List;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -14,6 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -33,12 +33,9 @@ class DocumentAnalysisServiceTest {
     @Mock
     private AiOrchestrationService aiOrchestrationService;
 
-    private DocumentAnalysisService documentAnalysisService;
-
-    @BeforeEach
-    void setUp() {
+    private DocumentAnalysisService newDocumentAnalysisService() {
         UploadProperties uploadProperties = new UploadProperties(List.of("pdf", "docx", "txt"), 15000);
-        documentAnalysisService = new DocumentAnalysisService(
+        return new DocumentAnalysisService(
                 uploadProperties,
                 documentParsingService,
                 textPreparationService,
@@ -48,6 +45,7 @@ class DocumentAnalysisServiceTest {
 
     @Test
     void shouldReturnAnalysisResponseForValidFile() {
+        DocumentAnalysisService documentAnalysisService = newDocumentAnalysisService();
         MockMultipartFile file = new MockMultipartFile(
                 "file",
                 "notes.txt",
@@ -70,6 +68,7 @@ class DocumentAnalysisServiceTest {
 
     @Test
     void shouldPreferPastedTextOverFile() {
+        DocumentAnalysisService documentAnalysisService = newDocumentAnalysisService();
         MockMultipartFile file = new MockMultipartFile(
                 "file",
                 "notes.txt",
@@ -89,6 +88,7 @@ class DocumentAnalysisServiceTest {
 
     @Test
     void shouldRejectUnsupportedFileType() {
+        DocumentAnalysisService documentAnalysisService = newDocumentAnalysisService();
         MockMultipartFile file = new MockMultipartFile(
                 "file",
                 "notes.md",
@@ -96,11 +96,14 @@ class DocumentAnalysisServiceTest {
                 "content".getBytes()
         );
 
-        assertThrows(InvalidRequestException.class, () -> documentAnalysisService.analyze(file, null, "formal"));
+        InvalidRequestException ex =
+                assertThrows(InvalidRequestException.class, () -> documentAnalysisService.analyze(file, null, "formal"));
+        assertFalse(ex.getMessage().isBlank());
     }
 
     @Test
     void shouldRejectEmptyFileWhenNoText() {
+        DocumentAnalysisService documentAnalysisService = newDocumentAnalysisService();
         MockMultipartFile file = new MockMultipartFile(
                 "file",
                 "empty.txt",
@@ -108,6 +111,8 @@ class DocumentAnalysisServiceTest {
                 new byte[0]
         );
 
-        assertThrows(InvalidRequestException.class, () -> documentAnalysisService.analyze(file, null, "formal"));
+        InvalidRequestException ex =
+                assertThrows(InvalidRequestException.class, () -> documentAnalysisService.analyze(file, null, "formal"));
+        assertFalse(ex.getMessage().isBlank());
     }
 }

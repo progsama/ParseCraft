@@ -22,7 +22,8 @@ app:
     model: ${AI_MODEL:gpt-4o-mini}
     fallback-models: ${AI_FALLBACK_MODELS:}
     temperature: ${AI_TEMPERATURE:0.2}
-    max-tokens: ${AI_MAX_TOKENS:700}
+    # Bard/multi-line JSON needs headroom; override via AI_MAX_TOKENS if you hit provider limits.
+    max-tokens: ${AI_MAX_TOKENS:2048}
 
 springdoc:
   api-docs:

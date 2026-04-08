@@ -1,18 +1,17 @@
 package com.portfolio.docanalyzer.client;
 
-import java.util.List;
-import java.util.Map;
-
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientException;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.portfolio.docanalyzer.config.AiProperties;
 import com.portfolio.docanalyzer.exception.AiClientException;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 @Component
 @ConditionalOnProperty(name = "app.ai.provider", havingValue = "openai", matchIfMissing = true)
@@ -23,8 +22,12 @@ public class OpenAiClient implements AiClient {
 
     public OpenAiClient(AiProperties aiProperties) {
         this.aiProperties = aiProperties;
+        String baseUrl = Objects.requireNonNull(aiProperties.baseUrl(), "app.ai.base-url must be set for OpenAI");
+        if (baseUrl.isBlank()) {
+            throw new IllegalStateException("app.ai.base-url must be non-blank for OpenAI");
+        }
         this.restClient = RestClient.builder()
-                .baseUrl(aiProperties.baseUrl())
+                .baseUrl(baseUrl)
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .build();
     }
@@ -50,17 +53,24 @@ public class OpenAiClient implements AiClient {
             root = restClient.post()
                     .uri("/v1/chat/completions")
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + aiProperties.apiKey())
-                    .body(payload)
+                    .body(Objects.requireNonNull(payload))
                     .retrieve()
                     .body(JsonNode.class);
         } catch (RestClientException ex) {
             throw new AiClientException("OpenAI API request failed. Check API key, model, and quota.", ex);
         }
 
-        try {
-            return root.path("choices").get(0).path("message").path("content").asText();
-        } catch (Exception ex) {
-            throw new AiClientException("Invalid response received from AI provider.", ex);
+        if (root == null) {
+            throw new AiClientException("OpenAI returned an empty response body.");
         }
+        JsonNode choices = root.path("choices");
+        if (!choices.isArray() || choices.isEmpty()) {
+            throw new AiClientException("Invalid response received from AI provider: missing choices.");
+        }
+        String content = choices.get(0).path("message").path("content").asText();
+        if (content.isBlank()) {
+            throw new AiClientException("Invalid response received from AI provider: empty message content.");
+        }
+        return content;
     }
 }

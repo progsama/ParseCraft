@@ -1,5 +1,6 @@
 package com.portfolio.docanalyzer.client;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.portfolio.docanalyzer.config.AiProperties;
@@ -9,6 +10,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.HttpHeaders;
@@ -29,8 +31,12 @@ public class GeminiClient implements AiClient {
     public GeminiClient(AiProperties aiProperties) {
         this.aiProperties = aiProperties;
         this.objectMapper = new ObjectMapper();
+        String baseUrl = Objects.requireNonNull(aiProperties.baseUrl(), "app.ai.base-url must be set for Gemini");
+        if (baseUrl.isBlank()) {
+            throw new IllegalStateException("app.ai.base-url must be non-blank for Gemini");
+        }
         this.restClient = RestClient.builder()
-                .baseUrl(aiProperties.baseUrl())
+                .baseUrl(baseUrl)
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .build();
     }
@@ -87,11 +93,13 @@ public class GeminiClient implements AiClient {
                 throw new AiClientException("Gemini returned an empty candidate payload.");
             }
             return result;
-        } catch (Exception ex) {
+        } catch (AiClientException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
             String compactRoot;
             try {
                 compactRoot = objectMapper.writeValueAsString(root);
-            } catch (Exception ignored) {
+            } catch (JsonProcessingException jpe) {
                 compactRoot = "<unavailable>";
             }
             throw new AiClientException("Invalid response received from Gemini provider. Payload: " + compactRoot, ex);
@@ -112,7 +120,7 @@ public class GeminiClient implements AiClient {
                                     .path("/v1beta/models/{model}:generateContent")
                                     .queryParam("key", aiProperties.apiKey())
                                     .build(model))
-                            .body(payload)
+                            .body(Objects.requireNonNull(payload))
                             .retrieve()
                             .body(JsonNode.class);
                 } catch (RestClientResponseException ex) {

@@ -23,6 +23,8 @@ public class PromptFactory {
                 - Summary must include: main purpose, key action if any, deadline or consequence if present.
                 - Summary must include at least 2 concrete details from the document when available.
                 - Preserve facts, names, and intent. Do not invent details.
+                - For non-formal styles: the summary must be fully REWRITTEN in that voice. Do not copy-paste formal sentences,
+                  letterhead phrasing, or long quotations from the source. Paraphrase every idea in the requested style.
                 - Do not mention "JSON", "schema", "prompt", or formatting instructions in the summary.
                 - Follow the requested summary style exactly: %s.
                 - Style guidance: %s
@@ -61,22 +63,49 @@ public class PromptFactory {
                 """.formatted(reason, style.apiValue(), styleRepairHints(style), previousJson, documentText);
     }
 
-    public String buildStyleRepairPrompt(String documentText, SummaryStyle style, String previousJson) {
+    /**
+     * Short, JSON-only recovery prompt when the primary structured response could not be parsed.
+     * Truncates very long inputs to reduce token errors.
+     */
+    public String buildJsonFallbackPrompt(String documentText, SummaryStyle style) {
+        String doc = documentText.length() > 14_000 ? documentText.substring(0, 14_000) + "\n[document truncated for length]" : documentText;
+        String styleGuidance = styleGuidance(style);
         return """
-                Rewrite ONLY the summary style while preserving facts exactly.
-                Return ONLY valid JSON with keys: tone, tone_explanation, summary.
-                Requested style: %s
+                Output a single JSON object only. No markdown code fences. No text before or after the JSON.
+                Required keys (exactly, use double quotes): "tone", "tone_explanation", "summary".
+                tone and tone_explanation describe the source document (formal/casual register of the original), not the summary voice.
+                The summary field must follow style "%s" only.
 
-                Keep tone and tone_explanation aligned to the original document tone.
-
+                Style rules for the summary field:
                 %s
 
-                Previous output:
-                %s
+                Rules:
+                - Paraphrase; do not copy-paste long spans from the document into summary.
+                - Include concrete facts (names, dates, outcomes) when present.
 
-                Source document:
+                Document:
                 %s
-                """.formatted(style.apiValue(), styleRepairBlock(style), previousJson, documentText);
+                """.formatted(style.apiValue(), styleGuidance, doc);
+    }
+
+    /**
+     * Second pass for bard only: model sometimes returns an empty or prose-like summary on long documents.
+     * Uses a shorter excerpt so the herald-style rewrite fits in the output budget.
+     */
+    public String buildBardSummaryEmphasisPrompt(String documentText) {
+        String doc = documentText.length() > 10_000 ? documentText.substring(0, 10_000) + "\n[...truncated...]" : documentText;
+        return """
+                You output JSON only. Keys: "tone", "tone_explanation", "summary" (use tone_explanation with underscore).
+                tone: 2-4 words describing the DOCUMENT's register (e.g. Serious and formal).
+                tone_explanation: 1-2 sentences about how the source document sounds (stay accurate to the source).
+                summary: THIS FIELD IS THE ONLY PLACE FOR BARD STYLE. It must be 6-14 short lines separated by newlines.
+                Start with a herald opening ("Hear ye", "Attend, good people", or "Hark"). Each line is rhythmic, like a town crier.
+                Paraphrase facts only — do not copy letterhead, salutations, or long formal sentences from the document.
+                Include names, dates, and outcomes when present.
+
+                Document:
+                %s
+                """.formatted(doc);
     }
 
     private String styleRepairHints(SummaryStyle style) {
@@ -87,24 +116,6 @@ public class PromptFactory {
         };
     }
 
-    private String styleRepairBlock(SummaryStyle style) {
-        return switch (style) {
-            case FORMAL -> """
-                    Summary style — formal:
-                    Language of documentation, offices, and people in authority: precise, structured, professional.
-                    """;
-            case EVERYDAY -> """
-                    Summary style — everyday / Gen Z–casual:
-                    How regular people talk day to day; may include light Gen Z phrasing; stay clear and readable.
-                    """;
-            case BARD -> """
-                    Summary style — bard / herald:
-                    Deliver the summary as a short spoken announcement: stately, rhythmic lines (like a herald or bard proclaiming news).
-                    You may use "Hear ye" or "Attend:" sparingly; keep facts correct; 4-8 short lines is enough.
-                    """;
-        };
-    }
-
     private String styleGuidance(SummaryStyle style) {
         return switch (style) {
             case FORMAL -> """
@@ -112,12 +123,16 @@ public class PromptFactory {
                     No slang. Full sentences. Suitable for policy letters and official notices.
                     """;
             case EVERYDAY -> """
-                    Gen Z / casual everyday: natural speech regular people use, including light Gen Z markers if they fit.
-                    Relaxed, conversational, easy to read; avoid stiff legal tone in the summary only.
+                    Gen Z / casual everyday: write the whole summary like you are explaining to a friend.
+                    Use contractions (it's, don't, they're), plain words, and short sentences. You may use light Gen Z phrasing
+                    (fr, ngl, lowkey) sparingly if it fits — do not force slang. Never keep the stiff legal or office voice
+                    of the source in the summary field.
                     """;
             case BARD -> """
-                    Bard / herald: rewrite the summary as a short rhythmic proclamation (verse-like spacing OK in plain text).
-                    Stately, memorable, medieval-herald flavor ("Attend, good people…", short lines), but every fact must stay true.
+                    Bard / herald: the entire summary must be a short spoken proclamation in 4–12 short lines (like a town crier).
+                    Open with a herald flourish ("Hear ye", "Attend, good people", "Hark") then deliver facts in rhythmic lines.
+                    Do not paste the original letter's sentences or paragraphs. Paraphrase only; every line should sound like
+                    verse or a proclamation, not a copy of the document.
                     """;
         };
     }
