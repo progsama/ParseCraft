@@ -13,7 +13,6 @@ Full-stack portfolio project: a **Next.js** web app and **Spring Boot** API that
 - [Local setup](#local-setup)
 - [Docker](#docker)
 - [Interactive API docs (Swagger UI)](#interactive-api-docs-swagger-ui)
-- [Future: AWS deployment](#future-aws-deployment)
 - [Screenshots](#screenshots)
 - [Resume-ready bullets](#resume-ready-bullets)
 - [Project talking points](#project-talking-points)
@@ -202,12 +201,6 @@ With the backend running:
 
 - **Swagger UI:** <http://localhost:8080/swagger-ui.html>  
 - **OpenAPI JSON:** <http://localhost:8080/api-docs>  
-
----
-
-## Future: AWS deployment
-
-Roadmap (not implemented in-repo): container images on **ECS/Fargate** or **App Runner**, **CloudFront** + **S3** or **Amplify** for the Next.js app, **Secrets Manager** for `AI_API_KEY`, **RDS** or **DynamoDB** when you add users or saved analyses. Set `APP_CORS_ALLOWED_ORIGINS` to your production HTTPS origin.
 
 ---
 
