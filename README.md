@@ -16,7 +16,7 @@ Full-stack portfolio project: a **Next.js** web app and **Spring Boot** API that
 - [Future: AWS deployment](#future-aws-deployment)
 - [Screenshots](#screenshots)
 - [Resume-ready bullets](#resume-ready-bullets)
-- [Interview talking points](#interview-talking-points)
+- [Project talking points](#project-talking-points)
 
 ---
 
@@ -65,13 +65,17 @@ Full-stack portfolio project: a **Next.js** web app and **Spring Boot** API that
 
 ## Tech stack
 
-| Layer | Choice |
-|--------|--------|
-| Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS |
-| Backend | Java 17, Spring Boot 3.3, Spring Validation |
-| Docs | springdoc-openapi (Swagger UI) |
-| Documents | Apache PDFBox (PDF), Apache POI (DOCX), plain text |
-| AI | OpenAI-compatible or Gemini REST via configurable base URL |
+<!-- markdownlint-disable MD060 -->
+
+| Layer     | Choice                                                 |
+| --------- | ------------------------------------------------------ |
+| Frontend  | Next.js 16, React 19, TypeScript, Tailwind CSS         |
+| Backend   | Java 17, Spring Boot 3.3, Spring Validation            |
+| Docs      | springdoc-openapi (Swagger UI)                       |
+| Documents | Apache PDFBox (PDF), Apache POI (DOCX), plain text   |
+| AI        | OpenAI-compatible or Gemini REST via configurable base URL |
+
+<!-- markdownlint-enable MD060 -->
 
 ---
 
@@ -81,11 +85,15 @@ Full-stack portfolio project: a **Next.js** web app and **Spring Boot** API that
 
 **Content-Type:** `multipart/form-data`
 
-| Field | Required | Description |
-|--------|----------|-------------|
-| `style` | **Yes** | Summary style. Canonical values: `formal`, `everyday`, `bard`. Aliases (e.g. `casual`, `genz` → everyday; `herald` → bard) are normalized server-side. |
-| `text` | No* | Plain text to analyze. If present and non-blank after trim, it is used and **any uploaded file is ignored**. |
-| `file` | No* | One file: `.pdf`, `.docx`, or `.txt` (per server config). Used when `text` is empty. |
+<!-- markdownlint-disable MD060 -->
+
+| Field   | Required | Description |
+| ------- | -------- | ----------- |
+| `style` | **Yes**  | Summary style. Canonical values: `formal`, `everyday`, `bard`. Aliases (e.g. `casual`, `genz` → everyday; `herald` → bard) are normalized server-side. |
+| `text`  | No*      | Plain text to analyze. If present and non-blank after trim, it is used and **any uploaded file is ignored**. |
+| `file`  | No*      | One file: `.pdf`, `.docx`, or `.txt` (per server config). Used when `text` is empty. |
+
+<!-- markdownlint-enable MD060 -->
 
 \*Exactly one of `text` or `file` must effectively supply content: either non-empty `text`, or a non-empty file.
 
@@ -102,11 +110,15 @@ Full-stack portfolio project: a **Next.js** web app and **Spring Boot** API that
 
 **Error responses** (typical):
 
+<!-- markdownlint-disable MD060 -->
+
 | Status | Meaning |
-|--------|---------|
-| `400` | Missing style, invalid style, or neither usable text nor file |
-| `422` | Document could not be parsed |
-| `502` | AI provider error or invalid/unusable model response |
+| ------ | ------- |
+| `400`  | Missing style, invalid style, or neither usable text nor file |
+| `422`  | Document could not be parsed |
+| `502`  | AI provider error or invalid/unusable model response |
+
+<!-- markdownlint-enable MD060 -->
 
 **Example (curl)** — pasted text only:
 
@@ -144,7 +156,7 @@ mvn clean test
 mvn spring-boot:run
 ```
 
-API base URL defaults to **http://localhost:8080**.
+API base URL defaults to **<http://localhost:8080>**.
 
 ### Frontend
 
@@ -155,7 +167,7 @@ npm ci
 npm run dev
 ```
 
-Open **http://localhost:3000** (default Next.js dev port).
+Open **<http://localhost:3000>** (default Next.js dev port).
 
 ---
 
@@ -171,10 +183,14 @@ From the **repository root** (where `docker-compose.yml` lives):
 docker compose up --build
 ```
 
-| Service | URL |
-|---------|-----|
-| Frontend | http://localhost:3001 |
-| Backend | http://localhost:8080 |
+<!-- markdownlint-disable MD060 -->
+
+| Service  | URL                     |
+| -------- | ----------------------- |
+| Frontend | <http://localhost:3001> |
+| Backend  | <http://localhost:8080> |
+
+<!-- markdownlint-enable MD060 -->
 
 The compose file sets `NEXT_PUBLIC_API_BASE_URL=http://localhost:8080` so the **browser** calls the API on the host (correct for local Docker). If you use `127.0.0.1` or another origin, add it to **`APP_CORS_ALLOWED_ORIGINS`** and restart the backend.
 
@@ -184,26 +200,14 @@ The compose file sets `NEXT_PUBLIC_API_BASE_URL=http://localhost:8080` so the **
 
 With the backend running:
 
-- **Swagger UI:** http://localhost:8080/swagger-ui.html  
-- **OpenAPI JSON:** http://localhost:8080/api-docs  
+- **Swagger UI:** <http://localhost:8080/swagger-ui.html>  
+- **OpenAPI JSON:** <http://localhost:8080/api-docs>  
 
 ---
 
 ## Future: AWS deployment
 
-This section is a **roadmap** (not implemented in-repo yet). It shows how you would credibly evolve the same architecture on AWS.
-
-| Concern | Typical AWS approach |
-|---------|----------------------|
-| **Frontend** | Build Next.js static/standalone output → **S3** + **CloudFront**, or **Amplify Hosting** for git-based deploys. |
-| **Backend** | Container image → **Elastic Container Service (ECS)** on Fargate, or **AWS App Runner** for minimal ops. |
-| **Load & TLS** | **Application Load Balancer** + ACM certificate in front of ECS; CloudFront in front of the SPA. |
-| **Secrets** | Store `AI_API_KEY` in **Secrets Manager** or **SSM Parameter Store**; inject as env vars in the task definition. |
-| **Config** | Non-secret settings (model names, CORS origins, token limits) via **SSM** or task env; **no keys in images**. |
-| **Observability** | **CloudWatch** logs/metrics/alarms; optional **X-Ray** for trace IDs on the API. |
-| **Future persistence** | When you add users or history, introduce **RDS** (PostgreSQL) or **DynamoDB** behind the same stateless API (JWT or session in Redis if needed). |
-
-**CORS in production:** Set `APP_CORS_ALLOWED_ORIGINS` to your real CloudFront/Amplify HTTPS origin only.
+Roadmap (not implemented in-repo): container images on **ECS/Fargate** or **App Runner**, **CloudFront** + **S3** or **Amplify** for the Next.js app, **Secrets Manager** for `AI_API_KEY`, **RDS** or **DynamoDB** when you add users or saved analyses. Set `APP_CORS_ALLOWED_ORIGINS` to your production HTTPS origin.
 
 ---
 
@@ -211,11 +215,15 @@ This section is a **roadmap** (not implemented in-repo yet). It shows how you wo
 
 Add your own captures under **`docs/screenshots/`** and replace the placeholders below (or embed directly in your portfolio site).
 
+<!-- markdownlint-disable MD060 -->
+
 | # | Suggested content | Suggested filename |
-|---|-------------------|-------------------|
+| - | ----------------- | ------------------ |
 | 1 | Landing page with paste area + upload + style dropdown | `docs/screenshots/01-form.png` |
 | 2 | Results: tone + explanation + summary | `docs/screenshots/02-result.png` |
 | 3 | Swagger UI showing `POST /analyze` | `docs/screenshots/03-swagger.png` |
+
+<!-- markdownlint-enable MD060 -->
 
 **Markdown placeholders** (uncomment when files exist):
 
@@ -230,8 +238,6 @@ See **`docs/screenshots/README.md`** for a short checklist.
 
 ## Resume-ready bullets
 
-Use or adapt these (quantify where you can: latency, test count, model names you actually use).
-
 - Designed and implemented a **full-stack AI document analysis** tool: **Spring Boot 3** REST API and **Next.js** SPA with **multipart** upload and **paste-to-analyze** flow; **pasted text prioritized** over file when both are present.
 - Integrated **LLM providers** (OpenAI / Gemini) via **configuration-driven** HTTP clients, with **structured JSON** outputs, **sanitization**, and **quality gates** before returning tone and style-aware summaries.
 - Parsed **PDF** and **DOCX** server-side (**PDFBox**, **Apache POI**) with validation for file types and size limits; configurable **character caps** for model input.
@@ -240,7 +246,7 @@ Use or adapt these (quantify where you can: latency, test count, model names you
 
 ---
 
-## Interview talking points
+## Project talking points
 
 **Why Spring Boot?**  
 It matches common enterprise stacks, gives a fast path to a **production-style REST API** (validation, exception handling, multipart, dependency injection), and pairs cleanly with **OpenAPI** and tests. For a portfolio piece aimed at backend or full-stack roles, it signals familiarity with tools recruiters already keyword-search for.
@@ -255,4 +261,4 @@ Each request is **self-contained** (document + style + config). That simplifies 
 
 ## License
 
-Private portfolio / demonstration — adjust as needed for your situation.
+Private portfolio / demonstration.
